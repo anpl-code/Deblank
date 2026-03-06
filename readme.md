@@ -56,7 +56,7 @@ or
 
 **Build from source:**
 ```bash
-docker build -t [name] .
+docker build -f dockerfile -t [image_name] .
 ```
 
 #### Step 2: Run the Container
@@ -68,7 +68,7 @@ docker run -d \
     -e ENABLE_C_FAMILY=true \
     -e ENABLE_JS_TS=true \
     -e ENABLE_GO=true \
-    [image name]
+    [image_name]
 ```
 The container is configured using environment variables to define supported features:
 - `ENABLE_GUESS_LANG`: Set to `true` to enable automatically infer the programming language if not specified in the request.
