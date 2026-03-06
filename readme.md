@@ -1,5 +1,8 @@
 # Deblank 
 
+> [!IMPORTANT]
+> 🎉 This project originates from our **[ICSE'26 paper](https://arxiv.org/pdf/2508.13666)** and has received the **Distinguished Paper Award**.
+
 **Deblank** is a powerful tool designed to optimize Large Language Model (LLM) interactions by effectively reducing the token count of source code inputs or outputs. It acts as a bidirectional translation layer, compressing code into a compact, unformatted version for LLM processing and restoring it to a human-readable format for developers.
 
 
