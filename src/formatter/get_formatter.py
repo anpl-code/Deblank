@@ -42,8 +42,8 @@ FORMATTER_MAP={
 
 def get_formatter(language):
     if(language not in FORMATTER_MAP):
-        raise RuntimeError(f"Unsupported language: {language}")
+        raise RuntimeError(f"Language {language} is not supported.")
     formatter_cls=FORMATTER_MAP[language]
     if(not formatter_cls.check_prereq()):
-        raise RuntimeError(f"Prerequisite check failed for formatter: {language}")
+        raise RuntimeError(f"Language {language} is not enabled. Please set up the environment variable to enable the support for this language. Refer to the documentation for more details.")
     return formatter_cls()

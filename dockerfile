@@ -1,9 +1,4 @@
-FROM node:24
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3 python3-pip python3.11-venv && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -20,7 +15,7 @@ RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-EXPOSE 5000
+EXPOSE 5089
 
 ENTRYPOINT ["/app/install_scripts/entrypoint.sh"]
 

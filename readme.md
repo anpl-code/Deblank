@@ -66,7 +66,7 @@ docker build -f dockerfile -t [image_name] .
 Once the image is ready, start the service by running:
 ```bash
 docker run -d \
-    -p [port_number]:5000 \
+    -p [port_number]:5089 \
     -e ENABLE_GUESS_LANG=true \
     -e ENABLE_C_FAMILY=true \
     -e ENABLE_JS_TS=true \

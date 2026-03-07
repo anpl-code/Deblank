@@ -16,7 +16,7 @@ def extract_content(text, start_tag="```", end_tag="```",language_label=True,**k
     last_pos = 0
     
     for match in re.finditer(pattern, text, re.DOTALL):
-        pre_text = text[last_pos:match.start()].strip()
+        pre_text = text[last_pos:match.start()]
         if pre_text:
             results.append({"type": "text", "content": pre_text})
         
@@ -31,7 +31,7 @@ def extract_content(text, start_tag="```", end_tag="```",language_label=True,**k
         
         last_pos = match.end()
     
-    post_text = text[last_pos:].strip()
+    post_text = text[last_pos:]
     if post_text:
         results.append({"type": "text", "content": post_text})
         

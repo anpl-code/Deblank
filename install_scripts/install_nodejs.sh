@@ -1,14 +1,20 @@
-# Download and install nvm:
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+if ! command -v node >/dev/null; then
+    apt-get update
+    apt-get install -y ca-certificates curl gnupg
+    apt-get clean 
+    rm -rf /var/lib/apt/lists/*
 
-# in lieu of restarting the shell
-\. "$HOME/.nvm/nvm.sh"
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
 
-# Download and install Node.js:
-nvm install 22
+    NODE_MAJOR=24
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
 
-# Verify the Node.js version:
-node -v # Should print "v22.20.0".
+    apt-get update
+    apt-get install -y nodejs
+    apt-get clean 
+    rm -rf /var/lib/apt/lists/*
 
-# Verify npm version:
-npm -v # Should print "10.9.3".
+    node -v
+    npm -v
+fi

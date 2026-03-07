@@ -42,8 +42,6 @@ class JSFormatter(BaseFormatter):
 
     def __init__(self):
         self.lang='javascript'
-        self.unformatted_config="config/eslint_js_unformat.config.mjs"
-        self.formatted_config="config/eslint_js_format.config.mjs"
 
         self.indent_nodes=['class_body','switch_body','statement_block']
 
@@ -352,8 +350,6 @@ class TSFormatter(JSFormatter):
     def __init__(self):
         super().__init__()
         self.lang='typescript'
-        self.unformatted_config="config/eslint_ts_unformat.config.mjs"
-        self.formatted_config="config/eslint_ts_format.config.mjs"
 
         self.indent_nodes=['class_body','switch_body','statement_block','interface_body']
 

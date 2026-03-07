@@ -1,6 +1,6 @@
 if ! command -v uncrustify >/dev/null; then
 apt-get update && \
-    apt-get install -y --no-install-recommends cmake && \
+    apt-get install -y --no-install-recommends cmake wget ca-certificates build-essential && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -12,6 +12,8 @@ mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake --build . --config Release
+make -j$(nproc)
 make install
 cd ../.. #return to init dir
+rm -rf uncrustify-uncrustify-0.81.0
 fi

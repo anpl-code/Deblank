@@ -1,3 +1,4 @@
+source "$(dirname "$0")/install_nodejs.sh"
 packages=("@babel/parser@^7.28.5" "@babel/generator@^7.28.5")
 
 for pkg in "${packages[@]}"; do

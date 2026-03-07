@@ -26,6 +26,50 @@ def log_request(response):
         response.set_data(json.dumps(data))
     return response
 
+def process_code_request(data, with_lang_func, without_lang_func):
+    input_text = data.get("input")
+    mode = data.get("mode", "mixed")
+    repair_strategy = data.get("repair_strategy", "on_failure")
+    if mode == "code":
+        lang = data.get("language", None)
+        if not lang:
+            result = without_lang_func(input_text, repair_strategy)
+        else:
+            lang = lang.lower()
+            if lang not in LANGUAGE_NAME_MAP:
+                return {"Error": f"Language {lang} is not supported."}
+            logging.debug(f"Processing with language info: {lang}")
+            result = with_lang_func(input_text, LANGUAGE_NAME_MAP[lang], repair_strategy)
+        return {"segments": [result]}
+    elif mode == "mixed":
+        default_lang = data.get("language", None)
+        if default_lang and default_lang.lower() not in LANGUAGE_NAME_MAP:
+            return {"Error": f"Language {default_lang} is not supported."}
+        default_lang = LANGUAGE_NAME_MAP[default_lang.lower()] if default_lang else None
+        config = {**DEFAULT_EXTRACT_CONFIG, **data.get("config", {})}
+        segments = extract_content(input_text, **config)
+        processed_segments = []
+        for segment in segments:
+            if segment['type'] == 'text':
+                processed_segments.append(segment)
+            else:
+                lang = segment.get("lang")
+                if not lang:
+                    if default_lang:
+                        logging.debug(f"Default language used: {default_lang}")
+                        result = with_lang_func(segment['content'], default_lang, repair_strategy)
+                    else:
+                        logging.debug("Processing without language info.")
+                        result = without_lang_func(segment['content'], repair_strategy)
+                elif lang.lower() not in LANGUAGE_NAME_MAP:
+                    result = {"type": "code", "content": segment['content'], "language": lang, "meta_info": {"status": "failed", "original_error": f"Language {lang} is not supported."}}
+                else:
+                    result = with_lang_func(segment['content'], LANGUAGE_NAME_MAP[lang.lower()], repair_strategy)
+                processed_segments.append(result)
+        return {"segments": processed_segments}
+    else:
+        return {"Error": f"Invalid mode: {mode}. Supported modes are 'code' and 'mixed'."}
+
 @app.route('/unformat_code',methods=['POST'])
 def unformat_code_api():
     try:
@@ -34,56 +78,10 @@ def unformat_code_api():
             return jsonify({"Error":"No data received."}), 400
         logging.debug(f"Unformat API received:{data}")
 
-        input_text=data.get("input")
-        mode=data.get("mode","mixed")
-        repair_strategy=data.get("repair_strategy","on_failure")
-        if(mode=="code"):
-            lang=data.get("language",None)
-            if(not lang):
-                logging.debug("Unformat without language info.")
-                result=unformat_without_language_info(input_text,repair_strategy)
-            else:
-                lang=lang.lower()
-                if(not lang in LANGUAGE_NAME_MAP):
-                    return jsonify({"Error": f"Unsupported language: {lang}"}), 400
-                else:
-                    logging.debug("Unformat with language info:"+lang)
-                    result=unformat_with_language_info(input_text,LANGUAGE_NAME_MAP[lang],repair_strategy)
-        
-            return jsonify({
-                "segments":[
-                    result
-                ]
-            })
-        elif(mode=="mixed"):
-            default_lang=data.get("language",None)
-            if(default_lang and default_lang.lower() not in LANGUAGE_NAME_MAP):
-                return jsonify({"Error":f"Unsupported language: {default_lang}"}), 400
-            default_lang=LANGUAGE_NAME_MAP[default_lang.lower()] if default_lang else None
-            config={**DEFAULT_EXTRACT_CONFIG,**data.get("config",{})}#update default config
-            segments=extract_content(input_text,**config)
-            processed_segments=[]
-            for segment in segments:
-                if(segment['type']=='text'):
-                    processed_segments.append(segment)
-                else:
-                    lang=segment.get("lang")
-                    if(not lang):
-                        if(default_lang):
-                            logging.debug("Unformat use default language:"+default_lang)
-                            result=unformat_with_language_info(segment['content'],default_lang,repair_strategy)
-                        else:
-                            logging.debug("Unformat without language info.")
-                            result=unformat_without_language_info(segment['content'],repair_strategy)
-                    elif(lang.lower() not in LANGUAGE_NAME_MAP):
-                        result={"type":"code","content":segment['content'],"language":lang,"meta_info":{"status":"failed","original_error":"Unsupported language "+lang}}
-                    else:
-                        logging.debug("Unformat with language info:"+lang)
-                        result=unformat_with_language_info(segment['content'],LANGUAGE_NAME_MAP[lang.lower()],repair_strategy)
-                    processed_segments.append(result)
-            return jsonify({
-                "segments": processed_segments,
-            })
+        response_data = process_code_request(data, unformat_with_language_info, unformat_without_language_info)
+        if "Error" in response_data:
+            return jsonify(response_data), 400
+        return jsonify(response_data)
     except Exception as e:
         return jsonify({"Error":str(e)}), 400
 
@@ -101,10 +99,13 @@ def unformat_with_language_info(code,lang,repair_strategy):
 def get_prob_langs(code):
     global guess
     if(not guess):
+        if("ENABLE_GUESS_LANG" not in os.environ or not os.getenv("ENABLE_GUESS_LANG")):
+            err_msg="The language is not provided and automatic language inference (Guesslang) is not enabled. Please set environment variable ENABLE_GUESS_LANG to True to enable Guesslang or provide the language info in the request."
+            raise Exception(err_msg)
         try:
             from guesslang import Guess
         except ImportError as e:
-            err_msg="Import Guesslang failed:"+str(e)
+            err_msg="Import Guesslang failed: "+str(e)
             logging.error(err_msg)
             raise Exception(err_msg)
         guess=Guess()
@@ -149,56 +150,10 @@ def format_code_api():
             return jsonify({"Error":"No data received."}), 400
         logging.debug(f"Format API received:{data}")
 
-        input_text=data.get("input")
-        mode=data.get("mode","mixed")
-        repair_strategy=data.get("repair_strategy","on_failure")
-        if(mode=="code"):
-            lang=data.get("language",None)
-            if(not lang):
-                logging.debug("Format without language info.")
-                result=format_without_language_info(input_text,repair_strategy)
-            else:
-                lang=lang.lower()
-                if(not lang in LANGUAGE_NAME_MAP):
-                    return jsonify({"Error": f"Unsupported language: {lang}"}), 400
-                else:
-                    logging.debug("Format with language info:"+lang)
-                    result=format_with_language_info(input_text,LANGUAGE_NAME_MAP[lang],repair_strategy)
-        
-            return jsonify({
-                "segments":[
-                    result
-                ]
-            })
-        elif(mode=="mixed"):
-            default_lang=data.get("language",None)
-            if(default_lang and default_lang.lower() not in LANGUAGE_NAME_MAP):
-                return jsonify({"Error":f"Unsupported language: {default_lang}"}), 400
-            default_lang=LANGUAGE_NAME_MAP[default_lang.lower()] if default_lang else None
-            config={**DEFAULT_EXTRACT_CONFIG,**data.get("config",{})}#update default config
-            segments=extract_content(input_text,**config)
-            processed_segments=[]
-            for segment in segments:
-                if(segment['type']=='text'):
-                    processed_segments.append(segment)
-                else:
-                    lang=segment.get("lang")
-                    if(not lang):
-                        if(default_lang):
-                            logging.debug("Format use default language:"+default_lang)
-                            result=format_with_language_info(segment['content'],default_lang,repair_strategy)
-                        else:
-                            logging.debug("Format without language info.")
-                            result=format_without_language_info(segment['content'],repair_strategy)
-                    elif(lang.lower() not in LANGUAGE_NAME_MAP):
-                        result={"type":"code","content":segment['content'],"language":lang,"meta_info":{"status":"failed","original_error":"Unsupported language "+lang}}
-                    else:
-                        logging.debug("Format with language info:"+lang)
-                        result=format_with_language_info(segment['content'],LANGUAGE_NAME_MAP[lang.lower()],repair_strategy)
-                    processed_segments.append(result)
-            return jsonify({
-                "segments": processed_segments
-            })
+        response_data = process_code_request(data, format_with_language_info, format_without_language_info)
+        if "Error" in response_data:
+            return jsonify(response_data), 400
+        return jsonify(response_data)
     except Exception as e:
         return jsonify({"Error":str(e)}), 400
 
@@ -236,4 +191,4 @@ if __name__=="__main__":
             logging.error("Import Guesslang failed:"+str(e))
             raise e
         guess=Guess()
-    app.run(host="0.0.0.0",port=5000)
+    app.run(host="0.0.0.0",port=5089)
