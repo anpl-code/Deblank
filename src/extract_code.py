@@ -6,7 +6,7 @@ DEFAULT_EXTRACT_CONFIG={
     "language_tag":True
 }
 
-def extract_content(text, start_tag="```", end_tag="```",language_label=True,**kwargs): #use re
+def extract_content(text, start_tag="```", end_tag="```",language_tag=True,**kwargs): #use re
     s = re.escape(start_tag)
     e = re.escape(end_tag)
     
@@ -22,7 +22,7 @@ def extract_content(text, start_tag="```", end_tag="```",language_label=True,**k
         
         code_content = match.group(2)
         lang_label=None
-        if(language_label):
+        if(language_tag):
             res=re.search(r'^([ \{\t]+)?([\w\+\#_]+)([ \}\t]+)?\n',code_content)
             if(res):
                 lang_label=res.group(2).strip()

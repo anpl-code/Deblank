@@ -23,6 +23,7 @@ class PythonFormatter(BaseFormatter):
         self.max_repair_attempts=10
 
     def format_code(self,code:str,repair_strategy:str,info:dict) -> str:
+        info['tool']='yapf'
         try:
             formatted_code, changed = FormatCode(code,style_config=self.style_config)
             info['status']='success'
@@ -63,6 +64,7 @@ class PythonFormatter(BaseFormatter):
     def format_code_re(self,code:str,info:dict=None) -> str:
         if(info is not None):
             info['status']='regex'
+            info['tool']='regex'
         #add spaceline before class & function definition
         lines=code.splitlines()
         new_lines=[]
@@ -75,6 +77,7 @@ class PythonFormatter(BaseFormatter):
         return "\n".join(new_lines).rstrip()
 
     def unformat_code(self,code:str,repair_strategy:str,info:dict) -> str:
+        info['tool']='tokenize'
         try:
             self.reducer.set_source(code)
             unformatted_code=self.reducer.reduce_spaces()
@@ -116,6 +119,7 @@ class PythonFormatter(BaseFormatter):
     def unformat_code_re(self,code:str,info:dict=None) -> str:
         if(info is not None):
             info['status']='regex'
+            info['tool']='regex'
         masked_code,segments=mask_protected_nodes(code,"python")
         #reduce multiple spaces & spaces around operator
         masked_code=re.sub(r'_LC>>','_LC>>\n',masked_code)

@@ -1,13 +1,12 @@
 import subprocess
-import tempfile
 import logging
-import os
 import re
 from tree_sitter_languages import get_parser
 import shutil
 
 from .base import BaseFormatter
 from .utils import mask_protected_nodes,restore_protected_nodes,RepairUnableError,close_open_brackets,remove_appended_brackets
+from .io_utils import create_temp_input_file, read_text_file, safe_cleanup, normalize_stderr
 
 GO_FEATURES=[
             (re.compile(r'^\s*package\s+\w+',re.MULTILINE),2), #start by package declaration
@@ -44,6 +43,7 @@ class GoFormatter(BaseFormatter):
                            'var_spec_list','import_spec_list']
 
     def unformat_code(self,code:str,repair_strategy:str,info:dict) -> str:
+        info['tool']='go/scanner'
         if(not info['language_info']):#language not specified
             if(not self._go_heuristics(code)):
                 info.update({"status":"failed","repair_attempted":False,
@@ -58,11 +58,11 @@ class GoFormatter(BaseFormatter):
           
 
     def _run_scanner(self,code):
+        temp_in_path=None
+        temp_out_path=None
         try:
-            with tempfile.NamedTemporaryFile(mode='w+', delete=False,dir='./temp') as temp_in:
-                    temp_in.write(code)
-                    temp_in_path = temp_in.name
-                    logging.debug(f"Temporarily enter the file path: {temp_in_path}")
+            temp_in_path = create_temp_input_file(code)
+            logging.debug(f"Temporary input file path: {temp_in_path}")
 
             temp_out_path=temp_in_path+".out"
             cmd=['go','run','src/formatter/go/unformat.go',temp_in_path]
@@ -73,27 +73,21 @@ class GoFormatter(BaseFormatter):
             logging.debug(f"Go scanner Standard output: {result.stdout}")
             logging.debug(f"Go scanner Error output: {result.stderr}")
 
-            if result.stderr:
+            if result.returncode != 0:
                 logging.debug(f"Go scanner error: {result.stderr}")
-                os.unlink(temp_in_path)
-                return "<Error>",result.stderr
+                return "<Error>",normalize_stderr(result.stderr)
 
-            with open(temp_out_path, 'r') as f:
-                processed_code = f.read()
-                logging.debug("The formatted code was successfully read")
-                    
-            os.unlink(temp_in_path)
-            os.unlink(temp_out_path)
-            logging.debug("Temporary file deleted")
-
-            return processed_code, result.stdout
+            processed_code = read_text_file(temp_out_path)
+            logging.debug("The formatted code was successfully read")
+    
+            return processed_code, None
 
         except Exception as e:
             logging.error(f"Error in Go scanner processing: {e}")
-            os.unlink(temp_in_path)
-            if(os.path.exists(temp_out_path)):
-                os.unlink(temp_out_path)
             return "<Error>", str(e)
+        finally:
+            safe_cleanup(temp_in_path, temp_out_path)
+            logging.debug("Temporary file deleted")
      
     def _go_heuristics(self,code:str):
         #remove comments
@@ -111,6 +105,7 @@ class GoFormatter(BaseFormatter):
     def unformat_code_re(self,code:str,info=None):
         if(info is not None):
             info['status']='regex'
+            info['tool']='regex'
         masked_code,segments=mask_protected_nodes(code,self.lang)
         compressed = re.sub(r'[ \t]+',' ',masked_code)
         compressed = re.sub(r'\s+;', ';', compressed)
@@ -135,6 +130,7 @@ class GoFormatter(BaseFormatter):
         return restored_code.strip()
     
     def format_code(self,code:str,repair_strategy:str,info:dict) -> str:
+        info['tool']='gofmt'
         formatted_code,err_msg=self._run_gofmt(code)
         if(formatted_code!="<Error>"):
             info.update({"status":"success","repair_attempted":False,"original_error":None})
@@ -174,11 +170,10 @@ class GoFormatter(BaseFormatter):
                 return None
         
     def _run_gofmt(self,code):
+        temp_in_path=None
         try:
-            with tempfile.NamedTemporaryFile(mode='w+', delete=False,dir='./temp') as temp_in:
-                    temp_in.write(code)
-                    temp_in_path = temp_in.name
-                    logging.debug(f"Temporarily enter the file path: {temp_in_path}")
+            temp_in_path = create_temp_input_file(code)
+            logging.debug(f"Temporary input file path: {temp_in_path}")
                     
             cmd=['gofmt','-e','-w',temp_in_path]
             logging.debug(f"Run commands: {' '.join(cmd)}")
@@ -188,24 +183,21 @@ class GoFormatter(BaseFormatter):
             logging.debug(f"Gofmt Standard output: {result.stdout}")
             logging.debug(f"Gofmt Error output: {result.stderr}")
 
-            if result.stderr:
+            if result.returncode != 0:
                 logging.debug(f"Gofmt error: {result.stderr}")
-                os.unlink(temp_in_path)
-                return "<Error>",result.stderr
+                return "<Error>",normalize_stderr(result.stderr)
 
-            with open(temp_in_path, 'r') as f:
-                processed_code = f.read()
-                logging.debug("The formatted code was successfully read")
+            processed_code = read_text_file(temp_in_path)
+            logging.debug("The formatted code was successfully read")
                     
-            os.unlink(temp_in_path)
-            logging.debug("Temporary file deleted")
-
             return processed_code, None
 
         except Exception as e:
             logging.error(f"Error in Go scanner processing: {e}")
-            os.unlink(temp_in_path)
             return "<Error>", str(e)
+        finally:
+            safe_cleanup(temp_in_path)
+            logging.debug("Temporary file deleted")
 
     def repair_syntax_error(self,code,err_msg):
         code_lines=code.splitlines()
@@ -229,11 +221,12 @@ class GoFormatter(BaseFormatter):
         return "\n".join(code_lines),repair_info
 
     def cut_incomplete_statement(self,code):
+        temp_in_path=None
+        former_path=None
+        remain_path=None
         try:
-            with tempfile.NamedTemporaryFile(mode='w+', delete=False,dir='./temp') as temp_in:
-                temp_in.write(code)
-                temp_in_path = temp_in.name
-                logging.debug(f"Temporarily enter the file path: {temp_in_path}")
+            temp_in_path = create_temp_input_file(code)
+            logging.debug(f"Temporary input file path: {temp_in_path}")
             former_path=temp_in_path+".former.out"
             remain_path=temp_in_path+".remain.out"
                     
@@ -245,40 +238,29 @@ class GoFormatter(BaseFormatter):
             logging.debug(f"Go program Standard output: {result.stdout}")
             logging.debug(f"Go program Error output: {result.stderr}")
 
-            if result.stderr:
+            if result.returncode != 0:
                 logging.debug(f"Go program error: {result.stderr}")
-                os.unlink(temp_in_path)
-                if(os.path.exists(former_path)):
-                    os.unlink(former_path)
-                if(os.path.exists(remain_path)):
-                    os.unlink(remain_path)
                 raise RepairUnableError
 
-            with open(former_path, 'r') as f1, open(remain_path,'r') as f2:
-                former=f1.read()
-                remain=f2.read()
-                logging.debug("The truncated code was successfully read")
+            former=read_text_file(former_path)
+            remain=read_text_file(remain_path)
+            logging.debug("The truncated code was successfully read")
                     
-            os.unlink(temp_in_path)
-            os.unlink(former_path)
-            os.unlink(remain_path)
-            logging.debug("Temporary file deleted")
-
             return former,remain
 
         except Exception as e:
             if(isinstance(e,RepairUnableError)):
                 raise e
             logging.error(f"Error in Go program processing: {e}")
-            if(os.path.exists(former_path)):
-                os.unlink(former_path)
-            if(os.path.exists(remain_path)):
-                os.unlink(remain_path)
             raise RepairUnableError
+        finally:
+            safe_cleanup(temp_in_path, former_path, remain_path)
+            logging.debug("Temporary file deleted")
     
     def format_code_re(self,code:str,info=None,initial_indent=0):
         if(info is not None):
             info['status']='regex'
+            info['tool']='regex'
         parser=get_parser(self.lang)
         #add newlines
         edits=list()

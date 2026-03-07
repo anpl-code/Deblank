@@ -1,14 +1,13 @@
-import tempfile
 import logging
-import os
 import re
 import subprocess
-from operator import itemgetter
 from tree_sitter_languages import get_parser
 import json
+import shutil
 
 from .base import BaseFormatter
 from .utils import close_open_brackets,remove_appended_brackets,mask_protected_nodes,restore_protected_nodes
+from .io_utils import create_temp_input_file, read_text_file, safe_cleanup, normalize_stderr
 
 SUFFIX_MAP={
     'javascript':'.js',
@@ -24,12 +23,17 @@ class JSFormatter(BaseFormatter):
     def check_prereq(cls) -> bool:
         if(cls.prereq is not None):
             return cls.prereq
+        if(not shutil.which("node") or not shutil.which("npm")):
+            cls.prereq=False
+            return cls.prereq
         result = subprocess.run(
             ["npm", "list", "--depth=0", "--json"],
             capture_output=True,
-            text=True,
-            check=True
+            text=True
         )
+        if(result.returncode != 0):
+            cls.prereq=False
+            return cls.prereq
         installed = json.loads(result.stdout)
         dependencies = installed.get("dependencies", {})
         if("@babel/parser" in dependencies and "@babel/generator" in dependencies):
@@ -50,6 +54,7 @@ class JSFormatter(BaseFormatter):
         self.multiline_quotes_start=['`']
 
     def format_code(self,code:str,repair_strategy:str,info:dict) -> str:
+        info['tool']='babel'
         formatted_code,err_msg=self._run_babel(code,'format')
         if(formatted_code!="<Error>"):
             info.update({"status":"success","repair_attempted":False,"original_error":None})
@@ -83,6 +88,7 @@ class JSFormatter(BaseFormatter):
             raise NotImplementedError(f"Unknown repair strategy: {repair_strategy}")
     
     def unformat_code(self,code:str,repair_strategy:str,info:dict) -> str:
+        info['tool']='babel'
         unformatted_code,err_msg=self._run_babel(code,'unformat')
         if(unformatted_code!="<Error>"):
             info.update({"status":"success","repair_attempted":False,"original_error":None})
@@ -115,11 +121,11 @@ class JSFormatter(BaseFormatter):
 
     def _run_babel(self,code:str,option):
         suffix=SUFFIX_MAP.get(self.lang.lower(),'')
+        temp_in_path=None
+        temp_out_path=None
         try:
-            with tempfile.NamedTemporaryFile(mode='w+', suffix=suffix, delete=False,dir='./temp') as temp_in:
-                temp_in.write(code)
-                temp_in_path = temp_in.name
-                logging.debug(f"Temporarily enter the file path: {temp_in_path}")
+            temp_in_path = create_temp_input_file(code, suffix=suffix)
+            logging.debug(f"Temporary input file path: {temp_in_path}")
 
             temp_out_path = temp_in_path + '.out'
             cmd = ['node','src/formatter/babel.js',option,self.lang,temp_in_path,temp_out_path]
@@ -130,31 +136,26 @@ class JSFormatter(BaseFormatter):
             logging.debug(f"Babel Standard output: {result.stdout}")
             logging.debug(f"Babel Error output: {result.stderr}")
 
-            if result.stderr:
+            if result.returncode != 0:
                 logging.debug(f"Babel error: {result.stderr}")
-                os.unlink(temp_in_path)
-                return "<Error>",result.stderr
+                return "<Error>",normalize_stderr(result.stderr)
 
-            with open(temp_out_path, 'r') as f:
-                processed_code = f.read()
-                logging.debug("The formatted code was successfully read")
-                    
-            os.unlink(temp_in_path)
-            os.unlink(temp_out_path)
-            logging.debug("Temporary file deleted")
+            processed_code = read_text_file(temp_out_path)
+            logging.debug("The formatted code was successfully read")
 
             return processed_code, None
 
         except Exception as e:
             logging.error(f"Error in Babel processing: {e}")
-            os.unlink(temp_in_path)
-            if(os.path.exists(temp_out_path)):
-                os.unlink(temp_out_path)
             return "<Error>", str(e)
+        finally:
+            safe_cleanup(temp_in_path, temp_out_path)
+            logging.debug("Temporary file deleted")
     
     def unformat_code_re(self,code:str,info:dict=None):
         if(info is not None):
             info['status']='regex'
+            info['tool']='regex'
         code=self.concat_lines(code)
         masked_code,segments=mask_protected_nodes(code,self.lang)
         compressed=re.sub(r'[ \t]+',' ',masked_code)
@@ -180,6 +181,7 @@ class JSFormatter(BaseFormatter):
     def format_code_re(self,code:str,info=None,initial_indent=0):
         if(info is not None):
             info['status']='regex'
+            info['tool']='regex'
         parser=get_parser(self.lang)
         #add newlines
         edits=list()

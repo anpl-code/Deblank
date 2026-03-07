@@ -1,12 +1,12 @@
 import subprocess
 import os
 import logging
-import tempfile
 import re
 import shutil
 
 from .base import BaseFormatter
 from .utils import *
+from .io_utils import create_temp_input_file, read_text_file, safe_cleanup, normalize_stderr
 
 CONFIG_PATH={
     'cpp':['config/cpp_formatted.cfg','config/cpp_unformatted.cfg'],
@@ -53,11 +53,11 @@ class CFamilyFormatter(BaseFormatter):#formatter for C family
 
     def _run_uncrustify(self,code:str,config_file:str):
         suffix=SUFFIX_MAP.get(self.lang.lower(),'')
+        temp_in_path=None
+        temp_out_path=None
         try:
-            with tempfile.NamedTemporaryFile(mode='w+', suffix=suffix, delete=False,dir='./temp') as temp_in:
-                temp_in.write(code)
-                temp_in_path = temp_in.name
-                logging.debug(f"Temporarily enter the file path: {temp_in_path}")
+            temp_in_path = create_temp_input_file(code, suffix=suffix)
+            logging.debug(f"Temporary input file path: {temp_in_path}")
                     
             temp_out_path = temp_in_path + '.out'
             logging.debug(f"Temporary output file path: {temp_out_path}")
@@ -66,7 +66,6 @@ class CFamilyFormatter(BaseFormatter):#formatter for C family
             if not os.path.exists(config_file):
                 err_msg=f"Configuration file not found: {config_file}"
                 logging.error(err_msg)
-                os.unlink(temp_in_path)
                 return "<Error>", err_msg
 
             cmd = ['uncrustify', '-c', config_file, '-f', temp_in_path, '-o', temp_out_path]
@@ -78,26 +77,20 @@ class CFamilyFormatter(BaseFormatter):#formatter for C family
             logging.debug(f"Uncrustify Error output: {result.stderr}")
                 
             if result.returncode != 0:
-                os.unlink(temp_in_path)
-                os.unlink(temp_out_path)
                 logging.debug(f"Uncrustify error: {result.stderr}")
-                return "<Error>", result.stderr
+                return "<Error>", normalize_stderr(result.stderr)
                     
-            with open(temp_out_path, 'r') as f:
-                processed_code = f.read()
-                logging.debug("The formatted code was successfully read")
-                    
-            os.unlink(temp_in_path)
-            os.unlink(temp_out_path)
-            logging.debug("Temporary file deleted")
-                
+            processed_code = read_text_file(temp_out_path)
+            logging.debug("The formatted code was successfully read")
+ 
             return processed_code, None
                 
         except Exception as e:
-            os.unlink(temp_in_path)
-            os.unlink(temp_out_path)
             logging.error(f"Error in uncrustify processing: {e}")
             return "<Error>", str(e)
+        finally:
+            safe_cleanup(temp_in_path, temp_out_path)
+            logging.debug("Temporary file deleted")
 
 class JavaFormatter(CFamilyFormatter):
     def __init__(self):
@@ -108,6 +101,7 @@ class JavaFormatter(CFamilyFormatter):
         self.unformatted_config=CONFIG_PATH['java'][1]
 
     def format_code(self,code:str,repair_strategy:str,info:dict) -> str:
+        info['tool']='uncrustify'
         formatted_code,err_msg=self._run_uncrustify(code,self.formatted_config)
         if(formatted_code!="<Error>"):
             info.update({"status":"success","original_error":None,"repair_attempted":False})
@@ -149,6 +143,7 @@ class JavaFormatter(CFamilyFormatter):
         return code
 
     def unformat_code(self,code:str,repair_strategy:str,info:dict) -> str:
+        info['tool']='uncrustify'
         unformatted_code,err_msg=self._run_uncrustify(code,self.unformatted_config)
         if(unformatted_code!="<Error>"):
             info.update({"status":"success","original_error":None,"repair_attempted":False})
@@ -218,6 +213,7 @@ class JavaFormatter(CFamilyFormatter):
     def unformat_code_re(self,code:str,info=None) -> str:
         if(info is not None):
             info['status']='regex'
+            info['tool']='regex'
         masked_code,segments=mask_protected_nodes(code,self.lang)
         compressed = re.sub(r'\s+;', ';', masked_code) #\s includes \n
         compressed = re.sub(r';\s+', ';', compressed)
@@ -243,6 +239,7 @@ class JavaFormatter(CFamilyFormatter):
     def format_code_re(self,code:str,info=None,initial_indent=0) -> str:
         if(info is not None):
             info['status']='regex'
+            info['tool']='regex'
         masked_code,segments=mask_protected_nodes(code,self.lang)
         lines=list()
         indent=initial_indent
@@ -316,6 +313,7 @@ class CFormatter(CFamilyFormatter):
         self.string_types=['char_literal','string_literal']
 
     def format_code(self,code:str,repair_strategy:str,info:dict) -> str:
+        info['tool']='uncrustify'
         formatted_code,err_msg=self._run_uncrustify(code,self.formatted_config)
         if(formatted_code!="<Error>"):
             info.update({"status":"success","original_error":None,"repair_attempted":False})
@@ -354,6 +352,7 @@ class CFormatter(CFamilyFormatter):
             raise NotImplementedError(f"Unknown repair strategy: {repair_strategy}")
 
     def unformat_code(self,code:str,repair_strategy:str,info:dict) -> str:
+        info['tool']='uncrustify'
         code=self.concat_lines(code)
         unformatted_code,err_msg=self._run_uncrustify(code,self.unformatted_config)
         if(unformatted_code!="<Error>"):
@@ -482,6 +481,7 @@ class CFormatter(CFamilyFormatter):
     def unformat_code_re(self,code:str,info:dict=None):
         if(info is not None):
             info['status']='regex'
+            info['tool']='regex'
         code=self.concat_lines(code)
         masked_code,segments=mask_protected_nodes(code,self.lang)
         compressed=re.sub(r'[ \t]+',' ',masked_code)
@@ -513,6 +513,7 @@ class CFormatter(CFamilyFormatter):
     def format_code_re(self,code:str,info:dict=None,initial_indent=0) -> str:
         if(info is not None):
             info['status']='regex'
+            info['tool']='regex'
         masked_code,segments=mask_protected_nodes(code,self.lang)
         for plh,content in segments.items():
             if(content.startswith("/*") and content.endswith("*/")):#block comment

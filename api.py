@@ -4,12 +4,19 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 import time
 import json
+import os
 guess=None
 
 from src.formatter.get_formatter import get_formatter,FORMATTER_MAP,LANGUAGE_NAME_MAP
 from src.extract_code import extract_content,DEFAULT_EXTRACT_CONFIG
 
 app=Flask(__name__)
+
+def get_env_bool(name:str,default:bool=False)->bool:
+    value=os.getenv(name)
+    if(value is None):
+        return default
+    return value.strip().lower() in {"1","true","yes","on"}
 
 @app.before_request
 def start_timer():
@@ -20,10 +27,10 @@ def log_request(response):
     if hasattr(g, 'start_time'):
         latency = (time.time() - g.start_time) * 1000
         app.logger.info(f"{request.method} {request.path} took {latency:.2f} ms")
-    if(response.is_json):
-        data=json.loads(response.get_data())
-        data['response_time_ms']=latency
-        response.set_data(json.dumps(data))
+        if(response.is_json):
+            data=json.loads(response.get_data())
+            data['response_time_ms']=latency
+            response.set_data(json.dumps(data))
     return response
 
 def process_code_request(data, with_lang_func, without_lang_func):
@@ -99,7 +106,7 @@ def unformat_with_language_info(code,lang,repair_strategy):
 def get_prob_langs(code):
     global guess
     if(not guess):
-        if("ENABLE_GUESS_LANG" not in os.environ or not os.getenv("ENABLE_GUESS_LANG")):
+        if(not get_env_bool("ENABLE_GUESS_LANG")):
             err_msg="The language is not provided and automatic language inference (Guesslang) is not enabled. Please set environment variable ENABLE_GUESS_LANG to True to enable Guesslang or provide the language info in the request."
             raise Exception(err_msg)
         try:
@@ -183,8 +190,7 @@ def format_without_language_info(code,repair_strategy):
     return {"type":"code","content":code,"language":None,"meta_info":{"status":"failed","original_error":"Unable to format code with inferred languages."}}
 
 if __name__=="__main__":
-    import os
-    if(os.getenv("ENABLE_GUESS_LANG",False)):
+    if(get_env_bool("ENABLE_GUESS_LANG")):
         try:
             from guesslang import Guess
         except ImportError as e:
