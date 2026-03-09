@@ -3,7 +3,7 @@
 > [!IMPORTANT]
 > 🎉 This project originates from our **[ICSE'26 paper](https://arxiv.org/pdf/2508.13666)** and has received the **Distinguished Paper Award**.
 
-**Deblank** is a powerful tool designed to optimize Large Language Model (LLM) interactions by effectively reducing the token count of source code inputs or outputs. It acts as a bidirectional translation layer, compressing code into a compact, unformatted version for LLM processing and restoring it to a human-readable format for developers.
+**Deblank** is a powerful tool designed to optimize LLM efficiency by reducing the token count of source code through removing the optional formatting in the code. It acts as a bidirectional translation layer, compressing code into a compact, unformatted version for LLM processing and restoring it to a human-readable format for developers.
 
 
 <p align="center">
@@ -17,20 +17,16 @@ Our programming languages are mainly designed for human readability, where forma
 However, when it comes to LLM interactions, we find that formatting becomes a barrier to token efficiency. 
 By removing the optional formatting in the code, we can significantly reduce the token count, thereby improving the token efficiency of LLM interactions.
 Most importantly, removing formatting does not affect the semantic meaning of the code.
-Experiments on models like DeepSeek-V3, Claude-3.7, and Gemini-1.5 show that removing formatting has negligible or positive impact on Pass@1 performance for Fill-in-the-Middle tasks. See our [ICSE'26 research paper](https://arxiv.org/pdf/2508.13666) for details.
+Experiments on 10 different models including, DeepSeek-V3, Claude-3.7, and Gemini-1.5, show that removing formatting has negligible impact on Pass@1 performance for Fill-in-the-Middle code completion tasks. See our [ICSE'26 research paper](https://arxiv.org/pdf/2508.13666) for details.
 
-Deblank is designed to support the removal and restoration of formatting in source code.
-It can achieve the following token reduction on source code collected from GitHub repositories across four different languages:
+Format removel can achieve the following token reduction for source code in our experiments (measured by GPT-4o's tokenizer):
 
 | Language | Reduction |
 |----------|-----------|
-| Java     | 14.7%     |
-| C#       | 13.2%     |
-| C++      | 13.2%     |
-| Python   | 4.0%      |
-
-> [!Note]
-> For domains like coding contests, the token reduction can be even higher.
+| Java     | 33.7%     |
+| C#       | 26.2%     |
+| C++      | 33.9%     |
+| Python   | 9.4%      |
 
 ## 🚀 Features
 
@@ -39,7 +35,7 @@ It can achieve the following token reduction on source code collected from GitHu
 - **Lossless Round-trip:** Compresses code for the LLM and reformats the output back to industry-standard styles (PEP 8, Google Style) for humans.
 - **Multi-Language Support:** Currently supports **Python**, **Java**, **C**, **C++**, **C#**, **JavaScript**, **TypeScript**, and **Go**.
 - **High Performance:** Average transformation time of ~76ms per sample, suitable for real-time pipelines.
-- **Easy Integration:** accessible via a simple REST API.
+- **Easy Integration:** Accessible via a simple REST API.
 
 ---
 
