@@ -1,6 +1,8 @@
 import subprocess
 import logging
 import re
+import os
+import tempfile
 from tree_sitter_languages import get_parser
 import shutil
 
@@ -19,9 +21,18 @@ GO_FEATURES=[
 ] 
 
 INDENT_LEVEL=1
+GO_EXEC_TIMEOUT = 0.5
+GO_BUILD_TIMEOUT = 15
+GO_TOOL_CACHE_DIR = os.path.join(tempfile.gettempdir(), "deblank_go_tools")
 
 class GoFormatter(BaseFormatter):
     prereq=None
+    _tool_bin_cache={}
+    _go_helper_sources=[
+        "src/formatter/go/unformat.go",
+        "src/formatter/go/cut_incomplete_statement.go"
+    ]
+
     @classmethod
     def check_prereq(cls) -> bool:
         if(cls.prereq is not None):
@@ -33,6 +44,17 @@ class GoFormatter(BaseFormatter):
             logging.error("Go is not installed.")
             cls.prereq=False
         return cls.prereq
+    
+    @classmethod
+    def precompile_helpers(cls) -> bool:
+        if not cls.check_prereq():
+            return False
+        formatter=cls()
+        success=True
+        for source_path in cls._go_helper_sources:
+            if formatter._ensure_go_tool_binary(source_path) is None:
+                success=False
+        return success
     
     def __init__(self):
         super().__init__()
@@ -65,10 +87,13 @@ class GoFormatter(BaseFormatter):
             logging.debug(f"Temporary input file path: {temp_in_path}")
 
             temp_out_path=temp_in_path+".out"
-            cmd=['go','run','src/formatter/go/unformat.go',temp_in_path]
+            tool_bin=self._ensure_go_tool_binary("src/formatter/go/unformat.go")
+            if tool_bin is None:
+                return "<Error>","Failed to build Go helper tool: unformat.go"
+            cmd=[tool_bin,temp_in_path]
             logging.debug(f"Run commands: {' '.join(cmd)}")
                     
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=0.5)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=GO_EXEC_TIMEOUT)
             logging.debug(f"Go scanner Return code: {result.returncode}")
             logging.debug(f"Go scanner Standard output: {result.stdout}")
             logging.debug(f"Go scanner Error output: {result.stderr}")
@@ -178,7 +203,7 @@ class GoFormatter(BaseFormatter):
             cmd=['gofmt','-e','-w',temp_in_path]
             logging.debug(f"Run commands: {' '.join(cmd)}")
                     
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=0.5)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=GO_EXEC_TIMEOUT)
             logging.debug(f"Gofmt Return code: {result.returncode}")
             logging.debug(f"Gofmt Standard output: {result.stdout}")
             logging.debug(f"Gofmt Error output: {result.stderr}")
@@ -230,10 +255,13 @@ class GoFormatter(BaseFormatter):
             former_path=temp_in_path+".former.out"
             remain_path=temp_in_path+".remain.out"
                     
-            cmd=['go','run','src/formatter/go/cut_incomplete_statement.go',temp_in_path]
+            tool_bin=self._ensure_go_tool_binary("src/formatter/go/cut_incomplete_statement.go")
+            if tool_bin is None:
+                raise RepairUnableError
+            cmd=[tool_bin,temp_in_path]
             logging.debug(f"Run commands: {' '.join(cmd)}")
                     
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=0.5)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=GO_EXEC_TIMEOUT)
             logging.debug(f"Go program Return code: {result.returncode}")
             logging.debug(f"Go program Standard output: {result.stdout}")
             logging.debug(f"Go program Error output: {result.stderr}")
@@ -256,6 +284,26 @@ class GoFormatter(BaseFormatter):
         finally:
             safe_cleanup(temp_in_path, former_path, remain_path)
             logging.debug("Temporary file deleted")
+
+    def _ensure_go_tool_binary(self, source_path:str):
+        cached=self.__class__._tool_bin_cache.get(source_path)
+        if cached and os.path.exists(cached):
+            return cached
+        try:
+            os.makedirs(GO_TOOL_CACHE_DIR, exist_ok=True)
+            source_name=os.path.splitext(os.path.basename(source_path))[0]
+            output_bin=os.path.join(GO_TOOL_CACHE_DIR, f"{source_name}_helper")
+            cmd=['go','build','-o',output_bin,source_path]
+            logging.debug(f"Build commands: {' '.join(cmd)}")
+            result=subprocess.run(cmd, capture_output=True, text=True, timeout=GO_BUILD_TIMEOUT)
+            if result.returncode != 0:
+                logging.error(f"Go tool build failed: {result.stderr}")
+                return None
+            self.__class__._tool_bin_cache[source_path]=output_bin
+            return output_bin
+        except Exception as e:
+            logging.error(f"Error building Go tool binary {source_path}: {e}")
+            return None
     
     def format_code_re(self,code:str,info=None,initial_indent=0):
         if(info is not None):

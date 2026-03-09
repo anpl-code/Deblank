@@ -8,6 +8,7 @@ import os
 guess=None
 
 from src.formatter.get_formatter import get_formatter,FORMATTER_MAP,LANGUAGE_NAME_MAP
+from src.formatter.formatter_go import GoFormatter
 from src.extract_code import extract_content,DEFAULT_EXTRACT_CONFIG
 
 app=Flask(__name__)
@@ -189,7 +190,18 @@ def format_without_language_info(code,repair_strategy):
             return {"type":"code","content":formatted_code,"language":lang,"meta_info":format_info}
     return {"type":"code","content":code,"language":None,"meta_info":{"status":"failed","original_error":"Unable to format code with inferred languages."}}
 
+def precompile_optional_tools():
+    if get_env_bool("ENABLE_GO"):
+        start_time=time.time()
+        if GoFormatter.precompile_helpers():
+            logging.info("Go helper tools precompiled at startup.")
+        else:
+            logging.warning("Go helper precompile skipped or failed; first Go request may trigger fallback build.")
+        elapsed = (time.time() - start_time) * 1000
+        logging.info(f"Go helper precompile took {elapsed:.2f} ms")
+
 if __name__=="__main__":
+    precompile_optional_tools()
     if(get_env_bool("ENABLE_GUESS_LANG")):
         try:
             from guesslang import Guess
