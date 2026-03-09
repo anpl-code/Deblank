@@ -7,7 +7,7 @@
 
 
 <p align="center">
-  <img src="assets/workflow.png" alt="Deblank Banner" width="800px" style="border: 1px solid #ddd; border-radius: 8px;">
+  <img src="assets/workflow.png" alt="Deblank Banner" width="500px" style="border: 1px solid #ddd; border-radius: 8px;">
 </p>
 
 
