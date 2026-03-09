@@ -30,7 +30,7 @@ Format removel can achieve the following token reduction for source code in our 
 
 ## 🚀 Features
 
-- **Token Efficient:** Reduces tokens by ~15% for C-family languages and ~4% for Python while maintaining model performance.
+- **Token Efficient:** Reduces tokens by ~30% for C-family languages and ~9% for Python while maintaining model performance.
 - **Semantic Safety:** Ensures the Abstract Syntax Tree (AST) remains unchanged; only non-essential formatting (whitespace, indentation) is removed.
 - **Lossless Round-trip:** Compresses code for the LLM and reformats the output back to industry-standard styles (PEP 8, Google Style) for humans.
 - **Multi-Language Support:** Currently supports **Python**, **Java**, **C**, **C++**, **C#**, **JavaScript**, **TypeScript**, and **Go**.
