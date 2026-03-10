@@ -2,6 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+COPY THIRD_PARTY_LICENSES /licenses/THIRD_PARTY_LICENSES
 COPY requirements.txt .
 COPY install_scripts /app/install_scripts
 RUN chmod +x -R /app/install_scripts

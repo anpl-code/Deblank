@@ -30,7 +30,7 @@ def log_request(response):
         app.logger.info(f"{request.method} {request.path} took {latency:.2f} ms")
         if(response.is_json):
             data=json.loads(response.get_data())
-            data['response_time_ms']=latency
+            data['response_time (ms)']=latency
             response.set_data(json.dumps(data))
     return response
 

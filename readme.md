@@ -1,5 +1,11 @@
 # Deblank 
 
+[![ICSE 2026 Paper](https://img.shields.io/badge/Paper-ICSE'26-blueviolet)](https://conf.researchr.org/details/icse-2026/icse-2026-research-track/39/The-Hidden-Cost-of-Readability-How-Code-Formatting-Silently-Consumes-Your-LLM-Budget)
+[![Paper](https://img.shields.io/badge/Arxiv-2508.13666-b31b1b)](https://arxiv.org/pdf/2508.13666)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Docker Image](https://img.shields.io/docker/v/zhangcen456/deblank?label=docker&logo=docker)](https://hub.docker.com/r/zhangcen456/deblank)
+[![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](#)
+
 > [!IMPORTANT]
 > 🎉 This project originates from our **[ICSE'26 paper](https://arxiv.org/pdf/2508.13666)** and has received the **Distinguished Paper Award**.
 
@@ -109,9 +115,11 @@ The API returns a JSON object containing a `segments` list. Each segment represe
   - `status`: Indicates the processing outcome.
     - `success`: The code is successfully processed.
     - `regex`: The primary formatting tool fails, and Deblank falls back to a heuristic, regex-based transformation.
-    - `failed`: The transformation could not be performed. The `content` remain in its original state.
-  - `repair_attempted`: A boolean value that indicates whether Deblank attempts to auto-fix syntax errors to satisfy the formatting tool.
-  - `original_error`: The raw error message returned by the underlying formatting tool if a failure or fallback occurs.
+    - `failed`: The transformation could not be performed. The `content` remains in its original state.
+  - `repair_attempted` (optional): A boolean value that indicates whether Deblank attempted to auto-fix syntax errors to satisfy the formatting tool.
+  - `original_error` (optional): The raw error message returned by the underlying formatting tool if a failure or fallback occurs.
+  - `tool` (optional): The formatting tool used for this segment.
+  - Note: For some early failures (for example, unsupported language), optional fields may be absent.
 
 ### Examples
 
@@ -144,10 +152,12 @@ The response will be:
       "meta_info":{
         "status": "success",
         "repair_attempted": false,
-        "original_error": null
+        "original_error": null,
+        "tool": "uncrustify"
       }
     }
-  ]
+  ],
+  "response_time (ms)": 11.34
 }
 ```
 
@@ -187,10 +197,12 @@ The response will be:
       "meta_info":{
         "status": "success",
         "repair_attempted": true,
-        "original_error": "do_source_file: Parsing: <source_file> as language JAVA\nindent_text(4321): size is 2\nindent_text(4323): File: <source_file>, open_line is 1, parent is NONE: Unmatched BRACE_OPEN"
+        "original_error": "do_source_file: Parsing: <source_file> as language JAVA\nindent_text(4321): size is 2\nindent_text(4323): File: <source_file>, open_line is 1, parent is NONE: Unmatched BRACE_OPEN",
+        "tool": "uncrustify"
       }
     }
-  ]
+  ],
+  "response_time (ms)": 18.91
 }
 ```
 
@@ -225,9 +237,25 @@ The response will be:
       "meta_info": {
         "status": "success",
         "repair_attempted": false,
-        "original_error": null
+        "original_error": null,
+        "tool": "babel"
       }
     }
-  ]
+  ],
+  "response_time (ms)": 487.64
 }
 ```
+
+## 📚 Citation
+```bibtex
+@article{pan2025hidden,
+  title={The hidden cost of readability: How code formatting silently consumes your llm budget},
+  author={Pan, Dangfeng and Sun, Zhensu and Zhang, Cenyuan and Lo, David and Du, Xiaoning},
+  journal={arXiv preprint arXiv:2508.13666},
+  year={2025}
+}
+```
+
+## 🙏 Acknowledgements
+
+Deblank depends on third-party open-source software, including the `python:3.11-slim` base image, Python packages (Tree-sitter, Tree-sitter-languages, Flask, TensorFlow, Guesslang, Yapf), and invokes Uncrustify, Node.js, Babel, and Go as external tools via CLI. See `THIRD_PARTY_LICENSES/` for the full license texts.

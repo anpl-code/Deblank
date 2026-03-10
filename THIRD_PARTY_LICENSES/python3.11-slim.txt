@@ -1,0 +1,2 @@
+Base image: python:3.11-slim
+Base image license information: https://github.com/docker-library/repo-info/blob/master/repos/python/local/3.11-slim.md
