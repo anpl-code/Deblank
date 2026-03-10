@@ -14,8 +14,8 @@
 ## 📊 Why Deblank?
 
 Our programming languages are mainly designed for human readability, where formatting is an essential part of the code.
-However, when it comes to LLM interactions, we find that formatting becomes a barrier to token efficiency. 
-By removing the optional formatting in the code, we can significantly reduce the token count, thereby improving the token efficiency of LLM interactions.
+However, when it comes to LLMs, formatting becomes a barrier to their token efficiency. 
+By removing the optional formatting in the code, we can significantly reduce the token count, thereby improving the token efficiency.
 Most importantly, removing formatting does not affect the semantic meaning of the code.
 Experiments on 10 different models including, DeepSeek-V3, Claude-3.7, and Gemini-1.5, show that removing formatting has negligible impact on Pass@1 performance for Fill-in-the-Middle code completion tasks. See our [ICSE'26 research paper](https://arxiv.org/pdf/2508.13666) for details.
 
@@ -30,12 +30,12 @@ Format removel can achieve the following token reduction for source code in our 
 
 ## 🚀 Features
 
-- **Token Efficient:** Reduces tokens by ~30% for C-family languages and ~9% for Python while maintaining model performance.
-- **Semantic Safety:** Ensures the Abstract Syntax Tree (AST) remains unchanged; only non-essential formatting (whitespace, indentation) is removed.
-- **Lossless Round-trip:** Compresses code for the LLM and reformats the output back to industry-standard styles (PEP 8, Google Style) for humans.
+- **Token-Efficient:** Reduces tokens by ~30% for C-family languages and ~9% for Python without sacrificing model performance.
+- **Semantically Safe:** : Guarantees your Abstract Syntax Tree (AST) remains completely unchanged. Only non-essential formatting (like whitespace and indentation) is stripped away.
+- **Lossless Round-Tripping:** Compresses code for the LLM and reformats the output back to industry-standard styles (PEP 8, Google Style) for humans.
 - **Multi-Language Support:** Currently supports **Python**, **Java**, **C**, **C++**, **C#**, **JavaScript**, **TypeScript**, and **Go**.
-- **High Performance:** Average transformation time of ~76ms per sample, suitable for real-time pipelines.
-- **Easy Integration:** Accessible via a simple REST API.
+- **High Performance:** Averages just ~76ms per transformation, making it fully optimized for real-time inference pipelines.
+- **Seamless Integration:** Get up and running quickly via a clean, straightforward REST API.
 
 ---
 
