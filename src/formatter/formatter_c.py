@@ -22,8 +22,6 @@ SUFFIX_MAP={
     'c':".c"
 }
 
-INDENT_LEVEL=4
-
 class CFamilyFormatter(BaseFormatter):#formatter for C family
     prereq=None
     @classmethod
@@ -99,6 +97,8 @@ class JavaFormatter(CFamilyFormatter):
         #read config files
         self.formatted_config=CONFIG_PATH['java'][0]
         self.unformatted_config=CONFIG_PATH['java'][1]
+
+        self.indent_level=2
 
     def format_code(self,code:str,repair_strategy:str,info:dict) -> str:
         info['tool']='uncrustify'
@@ -249,16 +249,16 @@ class JavaFormatter(CFamilyFormatter):
             pos=pattern.search(remain_code)
             if(not pos):
                 remain_code=remain_code.lstrip()
-                if(remain_code.startswith('}')): indent=max(0,indent-INDENT_LEVEL)
+                if(remain_code.startswith('}')): indent=max(0,indent-self.indent_level)
                 lines.append(" "*indent+remain_code)
                 break
             cur_line=re.sub(r'(_LC>>|\n|<<PREPROCESSOR_\w*>>)[ \t]*',r"\1"+" "*indent,remain_code[:pos.start()+1])
             ch=remain_code[pos.start()]
             if(ch=='}'):
-                indent=max(0,indent-INDENT_LEVEL)
+                indent=max(0,indent-self.indent_level)
             lines.append(" "*indent+cur_line.lstrip()+"\n")
             if(ch=='{'):
-                indent+=INDENT_LEVEL
+                indent+=self.indent_level
             remain_code=remain_code[pos.start()+1:]
         restored_code=restore_protected_nodes("".join(lines),segments)
         return restored_code.rstrip()
@@ -307,6 +307,8 @@ class CFormatter(CFamilyFormatter):
         #read config files
         self.formatted_config=CONFIG_PATH['c'][0]
         self.unformatted_config=CONFIG_PATH['c'][1]
+
+        self.indent_level=2
 
         self.quotes=['"','\'']
         self.multiline_quotes_start=[]
@@ -457,7 +459,7 @@ class CFormatter(CFamilyFormatter):
         compressed = re.sub(r'\s+', ' ', compressed)
         compressed = re.sub(r'([a-zA-Z0-9\'"_\)])\s+([?:])',r'\1\2',compressed)
         compressed = re.sub(r'([?:])\s+([a-zA-Z0-9\'"_\(])',r'\1\2',compressed)
-        restored_code=restore_protected_nodes(restore_protected_nodes(compressed,segments2),segments)
+        restored_code=restore_protected_nodes(self.restore_preprocessors(compressed,segments2),segments)
         return restored_code.strip()
     
     def protect_preprocessors(self,code:str):
@@ -477,6 +479,15 @@ class CFormatter(CFamilyFormatter):
             else:
                 lines[i]=line.replace("_LC>>\n","_LC>>")
         return "".join(lines),segments
+
+    def restore_preprocessors(self,code:str,segments:dict):
+        # check if the char before the placeholder is _LC>> or \n, if not so, add a space to avoid midline directive
+        for key,content in segments.items():
+            if(not key.startswith("<<PREPROCESSOR_")):
+                continue
+            code=re.sub(r'(_LC>>|\n)[ \t]*'+re.escape(key), r'\1'+content, code)
+            code=code.replace(key,"\n"+content)
+        return code
 
     def unformat_code_re(self,code:str,info:dict=None):
         if(info is not None):
@@ -507,7 +518,7 @@ class CFormatter(CFamilyFormatter):
         compressed = re.sub(r'([+\-*/=\?:&%^|<>~!]+)\s+',r'\1',compressed)
         compressed = re.sub(r'(<<PREPROCESSOR_[0-9]+_PLH>>|<<PROTECTED_[0-9]+_PLACEHOLDER_LC>>)\s+',r'\1',compressed)
         compressed = re.sub(r'[ \t]+(<<PREPROCESSOR_[0-9]+_PLH>>|<<PROTECTED_[0-9]+_PLACEHOLDER[A-Z_]*>>)',r'\1',compressed)
-        restored_code=restore_protected_nodes(restore_protected_nodes(compressed,segments2),segments)
+        restored_code=restore_protected_nodes(self.restore_preprocessors(compressed,segments2),segments)
         return restored_code.strip()
     
     def format_code_re(self,code:str,info:dict=None,initial_indent=0) -> str:
@@ -527,18 +538,19 @@ class CFormatter(CFamilyFormatter):
             pos=pattern.search(remain_code)
             if(not pos):
                 remain_code=remain_code.lstrip()
-                if(remain_code.startswith('}')): indent=max(0,indent-INDENT_LEVEL)
+                if(remain_code.startswith('}')): indent=max(0,indent-self.indent_level)
                 lines.append(" "*indent+remain_code)
                 break
             cur_line=re.sub(r'(_LC>>|\n|<<PREPROCESSOR_\w*>>)[ \t]*',r"\1"+" "*indent,remain_code[:pos.start()+1])
             ch=remain_code[pos.start()]
             if(ch=='}'):
-                indent=max(0,indent-INDENT_LEVEL)
+                indent=max(0,indent-self.indent_level)
             lines.append(" "*indent+cur_line.lstrip()+"\n")
             if(ch=='{'):
-                indent+=INDENT_LEVEL
+                indent+=self.indent_level
             remain_code=remain_code[pos.start()+1:]
-        restored_code=restore_protected_nodes(restore_protected_nodes("".join(lines),segments2),segments)
+        restored_code=self.restore_preprocessors("".join(lines),segments2)
+        restored_code=restore_protected_nodes(restored_code,segments)
         return restored_code.rstrip()
     
     def close_open_string(self,code:str):
@@ -623,6 +635,8 @@ class CPPFormatter(CFormatter):
         self.formatted_config=CONFIG_PATH['cpp'][0]
         self.unformatted_config=CONFIG_PATH['cpp'][1]
 
+        self.indent_level=2
+
         self.quotes=['"','\'']
         self.multiline_quotes_start=['R"', 'LR"', 'uR"', 'UR"', 'u8R"']
         self.string_types=['string_literal','raw_string_literal', 'char_literal']
@@ -634,6 +648,8 @@ class CSharpFormatter(CFormatter):
         #read config files
         self.formatted_config=CONFIG_PATH['c_sharp'][0]
         self.unformatted_config=CONFIG_PATH['c_sharp'][1]
+
+        self.indent_level=4
 
         self.quotes=['"','\'']
         self.multiline_quotes_start=['@"','"""']
