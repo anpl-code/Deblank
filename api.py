@@ -1,7 +1,7 @@
 from flask import Flask,request,jsonify,g
 import re
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 import time
 import json
 import os
@@ -27,7 +27,7 @@ def start_timer():
 def log_request(response):
     if hasattr(g, 'start_time'):
         latency = (time.time() - g.start_time) * 1000
-        app.logger.info(f"{request.method} {request.path} took {latency:.2f} ms")
+        logging.info(f"{request.method} {request.path} took {latency:.2f} ms")
         if(response.is_json):
             data=json.loads(response.get_data())
             data['response_time (ms)']=latency
